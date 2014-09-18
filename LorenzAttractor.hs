@@ -68,15 +68,15 @@ lorenz  dt = go lzBase [lzBase]
           go (Lorenz i x y z)  xs = let l = Lorenz (i+1) (x+dt*(sigma*(y-x))) (y+dt*(x*(rho-z)-y)) (z+dt*(x*y-beta*z))
                                     in go l (l:xs)
 
-lorenzPoints :: Float -> [(GLfloat,GLfloat,GLfloat)] 
-lorenzPoints x = map (\(Lorenz i x y z) -> ((realToFrac x :: GLfloat), (realToFrac y :: GLfloat), (realToFrac z :: GLfloat))) (lorenz x)
+lorenzPoints :: Float -> [(Float,Float,Float)] 
+lorenzPoints x = map (\(Lorenz i x y z) -> (x, y, z)) (lorenz x)
 ----------------------------------------------------------------------------------------------------------------
 
 
 ----------------------------------------------------------------------------------------------------------------
 -- Grid
 
-gridPoints :: [(GLfloat, GLfloat, GLfloat)]
+gridPoints :: [(Float, Float, Float)]
 gridPoints = [(0,0,0),(1,0,0),
               (0,0,0),(0,1,0),
               (0,0,0),(0,0,1)]
@@ -170,8 +170,16 @@ vertex2f x y = vertex $ Vertex2 x y
   
 
 -- Set Vertex3
-vertex3f :: GLfloat -> GLfloat -> GLfloat -> IO ()
-vertex3f x y z = vertex $ Vertex3 x y z
+drawVertex3f :: Float -> Float -> Float -> IO ()
+drawVertex3f x y z = vertex $ vertex3f x y z
+
+--vertex3ff :: Float -> Float -> Float -> Vertex3 Float
+--vertex3ff x y z = Vertex3 x y (z::Float)
+vertex3f :: Float -> Float -> Float -> Vertex3 GLfloat
+vertex3f x y z = Vertex3 ((realToFrac x)::GLfloat) ((realToFrac y)::GLfloat) ((realToFrac z)::GLfloat)
+
+--drawVertex3 :: Float -> Float -> Float -> IO ()
+--drawVertex3 x y z = vertex $ Vertex3 (realToFrac x :: GLfloat) (realToFrac y :: GLfloat) (realToFrac z :: GLfloat)
 
 -- Set Vertex4
 vertex4f :: GLfloat -> GLfloat -> GLfloat -> GLfloat -> Vertex4 GLfloat
@@ -256,7 +264,7 @@ draw state (lorenzAttractor, grid) = do
   preservingMatrix $ do
     pointSize $= 2
     renderPrimitive Points $ do
-      mapM_ (\(x, y, z) -> vertex3f x y z ) (lorenzPoints 0.009)
+      mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints 0.009)
 
   swapBuffers
   updateInfo state
@@ -275,11 +283,11 @@ myInit args state = do
 
   lorenzAttractor <- defineNewList Compile $ do
     renderPrimitive LineStrip $ do
-      mapM_ (\(x, y, z) -> vertex3f x y z ) (lorenzPoints dt)
+      mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints dt)
 
   grid <- defineNewList Compile $ do
     renderPrimitive Lines $ do
-      mapM_ (\(x, y, z) -> vertex3f x y z ) gridPoints
+      mapM_ (\(x, y, z) -> drawVertex3f x y z ) gridPoints
 
 
   return (lorenzAttractor, grid)
