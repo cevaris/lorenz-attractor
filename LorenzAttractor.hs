@@ -20,7 +20,8 @@ data State = State {
    ph'     :: IORef GLfloat,
    th'     :: IORef GLfloat,
    info    :: IORef String,
-   zoom    :: IORef GLfloat
+   zoom    :: IORef GLfloat,
+   dots  :: IORef [(GLfloat, GLfloat, GLfloat)]
  }
 
 makeState :: IO State
@@ -31,7 +32,8 @@ makeState = do
   th <- newIORef 0
   i  <- newIORef ""
   z  <- newIORef 0.019
-  return $ State { frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z}
+  p  <- newIORef []
+  return $ State { frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z, dots = p}
 
 ----------------------------------------------------------------------------------------------------------------
 
@@ -41,14 +43,14 @@ makeState = do
 
 
 -- attractor parameters
-rho,sigma,beta :: Float
+rho,sigma,beta,dt :: Float
 sigma = 10
 beta = 8/3
 rho = 28 -- chaotic
 dt = 0.001
 
-ddt :: Vertex3 Float -> Vertex3 Float
-ddt (Vertex3 x y z) = (Vertex3 x' y' z')
+ddt :: (Float, Float, Float) -> Vertex3 Float
+ddt (x, y, z) = (Vertex3 x' y' z')
   where
     x' = sigma*(y-x)
     y' = x*(rho-z) - y
@@ -178,6 +180,18 @@ vertex4f x y z w = Vertex4 x y z w
 glWindowPos :: GLfloat -> GLfloat -> IO ()
 glWindowPos x y = glWindowPos2f x y
 
+
+timerFrequencyMillis :: Timeout
+timerFrequencyMillis = 20
+
+timer :: State -> TimerCallback
+timer state = do
+  --rot <- get (shouldRotate state)
+  --when rot $ do
+  --  ia <- get (inertia state)
+  --  diff state $~ ($+ ia)
+  --  postRedisplay Nothing
+  addTimerCallback timerFrequencyMillis (timer state)
 
 updateInfo :: State -> IO ()
 updateInfo state = do 
