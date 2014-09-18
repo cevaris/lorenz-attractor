@@ -12,13 +12,11 @@ import Graphics.Rendering.OpenGL.Raw.ARB.WindowPos
 type View = (GLfloat, GLfloat, GLfloat)
 
 data Zoom = In | Out
-zoomDelta = 0.0009
+zoomDelta = 9e-4
 
 data State = State {
    frames  :: IORef Int,
    t0      :: IORef Int,
-   viewRot :: IORef View,
-   angle'  :: IORef GLfloat,
    ph'     :: IORef GLfloat,
    th'     :: IORef GLfloat,
    info    :: IORef String,
@@ -29,13 +27,11 @@ makeState :: IO State
 makeState = do
    f  <- newIORef 0
    t  <- newIORef 0
-   v  <- newIORef (0, 0, 0)
-   a  <- newIORef 0
    ph <- newIORef 0
    th <- newIORef 0
    i  <- newIORef ""
    z  <- newIORef 0.019
-   return $ State { frames = f, t0 = t, viewRot = v, angle' = a, ph' = ph, th' = th, info = i, zoom = z}
+   return $ State { frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z}
 
 ----------------------------------------------------------------------------------------------------------------
 
@@ -43,10 +39,20 @@ makeState = do
 ----------------------------------------------------------------------------------------------------------------
 -- Lorenz
 
-s  = 10
-b  = 2.6666
-r  = 28
+
+-- attractor parameters
+rho,sigma,beta :: Float
+sigma = 10
+beta = 8/3
+rho = 28 -- chaotic
 dt = 0.001
+
+ddt :: Vertex3 Float -> Vertex3 Float
+ddt (Vertex3 x y z) = (Vertex3 x' y' z')
+  where
+    x' = sigma*(y-x)
+    y' = x*(rho-z) - y
+    z' = x*y- beta*z
 
 data Lorenz = Lorenz {step::Integer, x::Float, y::Float, z::Float} deriving (Read, Show, Eq)
 
@@ -56,12 +62,12 @@ lorenz  :: Float -> [Lorenz]
 lorenz  dt = go lzBase [lzBase]
         where 
           go :: Lorenz -> [Lorenz] -> [Lorenz]
-          go (Lorenz 50000 _ _ _) xs = reverse xs
-          go (Lorenz i x y z)  xs = let l = Lorenz (i+1) (x+dt*(s*(y-x))) (y+dt*(x*(r-z)-y)) (z+dt*(x*y-b*z))
+          go (Lorenz 5000 _ _ _) xs = reverse xs
+          go (Lorenz i x y z)  xs = let l = Lorenz (i+1) (x+dt*(sigma*(y-x))) (y+dt*(x*(rho-z)-y)) (z+dt*(x*y-beta*z))
                                     in go l (l:xs)
 
-lorenzPoints :: State -> [(GLfloat,GLfloat,GLfloat)] 
-lorenzPoints state = map (\(Lorenz i x y z) -> ((realToFrac x :: GLfloat), (realToFrac y :: GLfloat), (realToFrac z :: GLfloat))) (lorenz 0.001)
+lorenzPoints :: Float -> [(GLfloat,GLfloat,GLfloat)] 
+lorenzPoints x = map (\(Lorenz i x y z) -> ((realToFrac x :: GLfloat), (realToFrac y :: GLfloat), (realToFrac z :: GLfloat))) (lorenz x)
 ----------------------------------------------------------------------------------------------------------------
 
 
@@ -119,19 +125,15 @@ modScale state Out = do
 modRotate :: State -> SpecialKey -> IO ()
 modRotate state KeyDown = do
   ph' state $~! (+5)
-  (viewRot state) $~! (\(x, y, z) -> (x-5, y, z))
   postRedisplay Nothing
 modRotate state KeyUp  = do
   ph' state $~! (\x -> x - 5)
-  (viewRot state) $~! (\(x, y, z) -> (x+5, y, z))
   postRedisplay Nothing
 modRotate state KeyRight = do
   th' state $~! (+5)
-  (viewRot state) $~! (\(x, y, z) -> (x, y-5, z))
   postRedisplay Nothing
 modRotate state KeyLeft = do
   th' state $~!(\x -> x - 5)
-  (viewRot state) $~! (\(x, y, z) -> (x, y+5, z))
   postRedisplay Nothing
 
 
@@ -184,15 +186,13 @@ updateInfo state = do
   t <- get elapsedTime
   when (t - t0' >= 1000) $ do
     f <- get (frames state)
-    angle <- get (angle' state)
-    view <- get (viewRot state)
     ph <- get (ph' state)
     th <- get (th' state)
     zoom <- get (zoom state)
     let seconds = fromIntegral (t - t0') / 1000 :: GLfloat
         fps = fromIntegral f / seconds
         --result = ("[" ++ show f ++ " frames in " ++  (showGFloat (Just 2) seconds "") ++ " seconds] ["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show zoom ++ "]")
-        result = ("["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show (zoom*1000) ++ "]")
+        result = ("["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] z=["  ++ show (zoom*1000) ++ "]")
     info state $= result
     t0 state $= t
     frames state $= 0
@@ -217,9 +217,9 @@ draw state (lorenzAttractor, grid) = do
 
   lookAt (Vertex3 0.1 0 0.1) (Vertex3 0 0 0) (Vector3 0 1 0)
 
-  preservingMatrix $ do       
-    lineWidth $= 0.5
-    callList lorenzAttractor
+  --preservingMatrix $ do       
+  --  lineWidth $= 0.5
+  --  callList lorenzAttractor
   
   preservingMatrix $ do
     lineWidth $= 2
@@ -239,6 +239,11 @@ draw state (lorenzAttractor, grid) = do
     glWindowPos 5 5
     renderString Helvetica18 $ info
 
+  preservingMatrix $ do
+    pointSize $= 2
+    renderPrimitive Points $ do
+      mapM_ (\(x, y, z) -> vertex3f x y z ) (lorenzPoints 0.009)
+
   swapBuffers
   updateInfo state
   reportErrors
@@ -256,7 +261,7 @@ myInit args state = do
 
   lorenzAttractor <- defineNewList Compile $ do
     renderPrimitive LineStrip $ do
-      mapM_ (\(x, y, z) -> vertex3f x y z ) (lorenzPoints state)
+      mapM_ (\(x, y, z) -> vertex3f x y z ) (lorenzPoints dt)
 
   grid <- defineNewList Compile $ do
     renderPrimitive Lines $ do
@@ -282,9 +287,7 @@ main = do
 
     displayCallback $= draw state (lorenzObject, gridObj)
     reshapeCallback $= Just reshape
-    --depthFunc $= Just Less
-    --depthRange $= (0, 1)
-
+    
     keyboardMouseCallback $= Just (keyboard state)
     visibilityCallback $= Just (visible state)
     mainLoop

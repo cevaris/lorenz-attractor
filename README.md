@@ -15,6 +15,7 @@ A Haskell OpenGL/GLUT implementation of a Lorenz System
 - Haskell OpenGL
   - https://github.com/haskell-opengl/GLUT 
   - https://github.com/haskell-opengl/GLUT/blob/master/examples/Misc/Gears.hs
+  - https://github.com/ghorn/not-gloss-lorentz/blob/master/src/Main.hs
 - Makefile
   - https://github.com/jrahm/HaskellGL4/blob/master/Makefile
   
