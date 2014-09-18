@@ -25,13 +25,13 @@ data State = State {
 
 makeState :: IO State
 makeState = do
-   f  <- newIORef 0
-   t  <- newIORef 0
-   ph <- newIORef 0
-   th <- newIORef 0
-   i  <- newIORef ""
-   z  <- newIORef 0.019
-   return $ State { frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z}
+  f  <- newIORef 0
+  t  <- newIORef 0
+  ph <- newIORef 0
+  th <- newIORef 0
+  i  <- newIORef ""
+  z  <- newIORef 0.019
+  return $ State { frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z}
 
 ----------------------------------------------------------------------------------------------------------------
 
@@ -157,7 +157,7 @@ reshape s@(Size width height) = do
   if width <= height
     then ortho (-1) 1 (-1) (hf/wf) (-1) (1:: GLdouble)
     else ortho (-1) (wf/hf) (-1) 1 (-1) (1:: GLdouble)
-  perspective 90 (wf/hf) 0 1
+  --perspective 90 (wf/hf) 0 1
   matrixMode $= Modelview 0
 
   loadIdentity

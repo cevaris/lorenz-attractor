@@ -2,3 +2,5 @@ dist/
 *.o
 *.eventlog
 .cabal-sandbox
+
+LorenzAttractor
