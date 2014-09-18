@@ -11,6 +11,9 @@ import Graphics.Rendering.OpenGL.Raw.ARB.WindowPos
 -- Global State
 type View = (GLfloat, GLfloat, GLfloat)
 
+data Zoom = In | Out
+zoomDelta = 0.0009
+
 data State = State {
    frames  :: IORef Int,
    t0      :: IORef Int,
@@ -31,7 +34,7 @@ makeState = do
    ph <- newIORef 0
    th <- newIORef 0
    i  <- newIORef ""
-   z  <- newIORef 0.02
+   z  <- newIORef 0.019
    return $ State { frames = f, t0 = t, viewRot = v, angle' = a, ph' = ph, th' = th, info = i, zoom = z}
 
 ----------------------------------------------------------------------------------------------------------------
@@ -87,21 +90,9 @@ gridPoints = [(0,0,0),(1,0,0),
 ----------------------------------------------------------------------------------------------------------------
 -- Key Binding
 
---keyboard :: State -> KeyboardMouseCallback
---keyboard state (Char 'z')           _ _ _ = modRotate state ( 0,  0,  5)
---keyboard state (Char 'Z')           _ _ _ = modRotate state ( 0,  0, -5)
---keyboard state (SpecialKey KeyUp)   _ _ _ = modRotate state (-5,  0,  0)
---keyboard state (SpecialKey KeyDown) _ _ _ = modRotate state ( 5,  0,  0)
---keyboard state (SpecialKey KeyLeft) _ _ _ = modRotate state ( 0, -5,  0)
---keyboard state (SpecialKey KeyRight)_ _ _ = modRotate state ( 0,  5,  0)
---keyboard _     (Char '\27')         _ _ _ = exitWith ExitSuccess
---keyboard _     _                    _ _ _ = return ()
-
 keyboard :: State -> KeyboardMouseCallback
---keyboard state (Char 'z')           _ _ _ = modRotate state ( 0,  0,  5)
---keyboard state (Char 'Z')           _ _ _ = modRotate state ( 0,  0, -5)
-keyboard state (Char 'z')           _ _ _ = modScale state (-0.0009)
-keyboard state (Char 'Z')           _ _ _ = modScale state 0.0009
+keyboard state (Char 'z')           _ _ _ = modScale state In
+keyboard state (Char 'Z')           _ _ _ = modScale state Out
 keyboard state (SpecialKey KeyUp)   _ _ _ = modRotate state KeyUp
 keyboard state (SpecialKey KeyDown) _ _ _ = modRotate state KeyDown
 keyboard state (SpecialKey KeyLeft) _ _ _ = modRotate state KeyLeft
@@ -111,9 +102,18 @@ keyboard _     _                    _ _ _ = return ()
 
 
 ----------------------------------------------------------------------------------------------------------------
-modScale :: State -> GLfloat -> IO ()
-modScale state delta = do
-  (zoom state) $~! (+delta)
+modScale :: State -> Zoom -> IO ()
+modScale state In = do
+  z <- get (zoom state)
+  if 2e-2 <= z 
+    then (zoom state) $~! (\x -> x - zoomDelta)
+    else (zoom state) $~! (+zoomDelta)
+  postRedisplay Nothing
+modScale state Out = do
+  z <- get (zoom state)
+  if 6e-3 >= z 
+    then (zoom state) $~! (+zoomDelta)
+    else (zoom state) $~! (\x -> x - zoomDelta)
   postRedisplay Nothing
 
 modRotate :: State -> SpecialKey -> IO ()
@@ -155,6 +155,7 @@ reshape s@(Size width height) = do
   if width <= height
     then ortho (-1) 1 (-1) (hf/wf) (-1) (1:: GLdouble)
     else ortho (-1) (wf/hf) (-1) 1 (-1) (1:: GLdouble)
+  perspective 90 (wf/hf) 0 1
   matrixMode $= Modelview 0
 
   loadIdentity
@@ -191,7 +192,7 @@ updateInfo state = do
     let seconds = fromIntegral (t - t0') / 1000 :: GLfloat
         fps = fromIntegral f / seconds
         --result = ("[" ++ show f ++ " frames in " ++  (showGFloat (Just 2) seconds "") ++ " seconds] ["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show zoom ++ "]")
-        result = ("["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show zoom ++ "]")
+        result = ("["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show (zoom*1000) ++ "]")
     info state $= result
     t0 state $= t
     frames state $= 0
@@ -213,8 +214,10 @@ draw state (lorenzAttractor, grid) = do
 
   rotate ph (Vector3 1 0 0)
   rotate th (Vector3 0 1 0)
-  
-  preservingMatrix $ do   
+
+  lookAt (Vertex3 0.1 0 0.1) (Vertex3 0 0 0) (Vector3 0 1 0)
+
+  preservingMatrix $ do       
     lineWidth $= 0.5
     callList lorenzAttractor
   
@@ -236,11 +239,9 @@ draw state (lorenzAttractor, grid) = do
     glWindowPos 5 5
     renderString Helvetica18 $ info
 
-  --preservingMatrix $ do
-  --  pointSize $= 2
-
   swapBuffers
   updateInfo state
+  reportErrors
   
 
 myInit :: [String] -> State -> IO (DisplayList, DisplayList)
@@ -249,7 +250,9 @@ myInit args state = do
   --cullFace $= Just Back
   --lighting $= Enabled
   --light (Light 0) $= Enabled
-  --depthFunc $= Just Less
+  depthFunc $= Just Less
+  shadeModel $= Flat
+  depthRange $= (0, 1)
 
   lorenzAttractor <- defineNewList Compile $ do
     renderPrimitive LineStrip $ do
@@ -279,7 +282,8 @@ main = do
 
     displayCallback $= draw state (lorenzObject, gridObj)
     reshapeCallback $= Just reshape
-    --reshapeCallback $= Just setupProjection
+    --depthFunc $= Just Less
+    --depthRange $= (0, 1)
 
     keyboardMouseCallback $= Just (keyboard state)
     visibilityCallback $= Just (visible state)
