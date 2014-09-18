@@ -1,0 +1,15 @@
+name:              LorenzAttractor
+Build-Type:        Simple
+cabal-version:     >= 1.2
+version:           0.1
+author:            Adam Cardenas
+maintainer:        cevaris@gmail.com
+category:          Graphics
+
+extra-source-files:  readme.md
+
+executable LorenzAttractor
+    main-is:         LorenzAttractor.hs
+    build-depends:   base,
+                     GLUT,
+                     OpenGLRaw
