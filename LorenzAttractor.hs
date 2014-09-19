@@ -169,14 +169,12 @@ reshape s@(Size width height) = do
 toGfloat :: Float -> GLfloat
 toGfloat f = (realToFrac f)::GLfloat
 
--- Set Vertex3
 drawVertex3f :: Float -> Float -> Float -> IO ()
 drawVertex3f x y z = vertex $ vertex3f x y z
 
 vertex3f :: Float -> Float -> Float -> Vertex3 GLfloat
 vertex3f x y z = Vertex3 ((realToFrac x)::GLfloat) ((realToFrac y)::GLfloat) ((realToFrac z)::GLfloat)
 
--- Set Vertex4
 vertex4f :: Float -> Float -> Float -> Float -> Vertex4 GLfloat
 vertex4f x y z w = Vertex4 ((realToFrac x)::GLfloat) ((realToFrac y)::GLfloat) ((realToFrac z)::GLfloat) ((realToFrac w)::GLfloat)
 
@@ -215,13 +213,18 @@ updateInfo state = do
     zoom <- get (zoom state)
     let seconds = fromIntegral (t - t0') / 1000 :: GLfloat
         fps = fromIntegral f / seconds
-        --result = ("[" ++ show f ++ " frames in " ++  (showGFloat (Just 2) seconds "") ++ " seconds] ["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show zoom ++ "]")
-        --result = ("["++ (show (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] z=["  ++ show (zoom*1000) ++ "] lz[ " ++ show lzp ++ "]")
         result = (" [ph " ++ roundGL2 ph ++ "] [th " ++ roundGL2 th ++ "] [z "  ++ roundGL2 zoom ++ "] [sigma " ++ round2 s ++ "] [rho " ++ round2 r ++ "] [beta " ++ round2 b ++ "] [dt " ++ show d ++ "] [steps " ++ show st ++ "]")
     info state $= result
     t0 state $= t
     frames state $= 0
 
+
+drawGrid :: State -> IO DisplayList
+drawGrid state = do 
+  grid <- defineNewList Compile $ do
+    renderPrimitive Lines $ do
+      mapM_ (\(x, y, z) -> drawVertex3f x y z ) gridPoints
+  return grid
 
 drawLorenz :: State -> IO DisplayList
 drawLorenz state = do
@@ -238,8 +241,8 @@ drawLorenz state = do
 
   return lorenzAttractor
 
-draw :: State -> (DisplayList, DisplayList) -> IO ()
-draw state (lorenzAttractor, grid) = do
+draw :: State -> IO ()
+draw state = do
     
   clear [ ColorBuffer, DepthBuffer ]
 
@@ -248,6 +251,7 @@ draw state (lorenzAttractor, grid) = do
   info <- get (info state)
   zoom <- get (zoom state)
   lz  <- (drawLorenz state)
+  grid <- (drawGrid state)
   
   loadIdentity
 
@@ -293,7 +297,7 @@ draw state (lorenzAttractor, grid) = do
   reportErrors
   
 
-myInit :: [String] -> State -> IO (DisplayList, DisplayList)
+myInit :: [String] -> State -> IO ()
 myInit args state = do
   --position (Light 0) $= Vertex4 5 5 15 0
   --cullFace $= Just Back
@@ -302,24 +306,6 @@ myInit args state = do
   depthFunc $= Just Less
   shadeModel $= Flat
   depthRange $= (0, 1)
-
-  s  <- get (sigma state)
-  r  <- get (rho state)
-  b  <- get (beta state)
-  d  <- get (dt state)
-  st <- get (steps state)
-  let lzp = (s, r, b, d, st)
-
-  lorenzAttractor <- defineNewList Compile $ do
-    renderPrimitive LineStrip $ do
-      mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints lzp)
-
-  grid <- defineNewList Compile $ do
-    renderPrimitive Lines $ do
-      mapM_ (\(x, y, z) -> drawVertex3f x y z ) gridPoints
-
-
-  return (lorenzAttractor, grid)
 
 ----------------------------------------------------------------------------------------------------------------
 -- Key Binding
@@ -334,9 +320,9 @@ main = do
     _window <- createWindow "Lorenz Attractor"
 
     state <- makeState
-    (lorenzObject, gridObj) <- myInit args state
+    myInit args state
 
-    displayCallback $= draw state (lorenzObject, gridObj)
+    displayCallback $= draw state
     reshapeCallback $= Just reshape
     
     keyboardMouseCallback $= Just (keyboard state)
