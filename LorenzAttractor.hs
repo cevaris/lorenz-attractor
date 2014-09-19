@@ -1,5 +1,4 @@
 import Numeric
-import Data.List.Split
 import Control.Monad ( when )
 import Data.IORef ( IORef, newIORef )
 import System.Exit ( exitWith, ExitCode(ExitSuccess), exitFailure )
@@ -48,12 +47,6 @@ makeState = do
     rho = r, sigma = s, beta = b, dt = d, steps = st
   }
 
-colorPoints :: Integer -> [(Integer, Integer, Integer)]
-colorPoints s = do 
-  let colors = [(x,y,z) | x <- [1..255], y <-[1..255], z <-[1..255]]
-      chunkCount = (length colors) `div` (fromIntegral s :: Int)
-      chunks = chunksOf chunkCount colors
-  map (head) chunks
 
 
 ----------------------------------------------------------------------------------------------------------------
@@ -68,7 +61,7 @@ colorPoints s = do
 --    y' = x*(rho-z) - y
 --    z' = x*y- beta*z
 
-data Lorenz = Lorenz {c::(Integer, Integer, Integer), step::Integer, x::Float, y::Float, z::Float} deriving (Read, Show, Eq)
+data Lorenz = Lorenz {step::Integer, x::Float, y::Float, z::Float} deriving (Read, Show, Eq)
 data LorenzAttribute = Sigma | Beta | Rho | Dt | Step deriving (Read, Show, Eq)
 type LzParams = (Float, Float, Float, Float, Integer)
 
@@ -82,19 +75,19 @@ lzState state = do
   st <- get (steps state)
   return (s, r, b, d, st)
 
-lzBase   = Lorenz (1, 1, 1) 0 1 1 1
+lzBase   = Lorenz 0 1 1 1
 
 lorenz  :: LzParams -> [Lorenz]
-lorenz (s, r, b, d, st) = go (colorPoints st) lzBase [lzBase]
+lorenz (s, r, b, d, st) = go lzBase [lzBase]
         where 
-          go :: [(Integer, Integer, Integer)] -> Lorenz -> [Lorenz] -> [Lorenz]
-          go (g:gs) (Lorenz c i x y z) xs = if i >= st
+          go :: Lorenz -> [Lorenz] -> [Lorenz]
+          go (Lorenz i x y z)  xs = if i >= st
             then reverse xs
-            else let l = Lorenz g (i+1) (x+d*(s*(y-x))) (y+d*(x*(r-z)-y)) (z+d*(x*y-b*z))
-                 in go gs l (l:xs)
+            else let l = Lorenz (i+1) (x+d*(s*(y-x))) (y+d*(x*(r-z)-y)) (z+d*(x*y-b*z))
+                 in go l (l:xs)
 
 lorenzPoints :: LzParams -> [(Float,Float,Float)] 
-lorenzPoints lzp = map (\(Lorenz c i x y z) -> (x, y, z)) (lorenz lzp)
+lorenzPoints lzp = map (\(Lorenz i x y z) -> (x, y, z)) (lorenz lzp)
 ----------------------------------------------------------------------------------------------------------------
 
 
@@ -199,9 +192,8 @@ reshape s@(Size width height) = do
   loadIdentity  
 
   if width <= height
-    then ortho (-1) 1 (-1) (hf/wf) (-1) (1:: GLdouble)
-    else ortho (-1) (wf/hf) (-1) 1 (-1) (1:: GLdouble)
-  --perspective 90 (wf/hf) 0 1
+    then ortho (-1) 1 (-1) (hf/wf) (-500) (500:: GLdouble)
+    else ortho (-1) (wf/hf) (-1) 1 (-500) (500:: GLdouble)
   matrixMode $= Modelview 0
 
   loadIdentity
@@ -268,14 +260,10 @@ drawGrid state = do
 drawLorenz :: State -> IO DisplayList
 drawLorenz state = do
   lzp <- (lzState state)
+  t <- get (t0 state)
   lorenzAttractor <- defineNewList Compile $ do
     renderPrimitive LineStrip $ do
-      mapM_ (\(Lorenz (a, b, c) i x y z) -> do
-        --color3f ((x+i)::Float) ((y+i)::Float) ((z+i)::Float)
-        --color3f (i::Float) (i::Float) (i::Float)
-        --color3f (x*(fromIntegral (i))::Float) (y*(fromIntegral i)::Float) (z*(fromIntegral i)::Float)
-        color3f ((fromIntegral a) :: Float) ((fromIntegral b) :: Float) ((fromIntegral c) :: Float)
-        drawVertex3f x y z) (lorenz lzp)
+      mapM_ (\(Lorenz i x y z) -> drawVertex3f x y z) (lorenz lzp)
 
   return lorenzAttractor
 
@@ -344,7 +332,7 @@ myInit args state = do
   --lighting $= Enabled
   --light (Light 0) $= Enabled
   depthFunc $= Just Less
-  shadeModel $= Flat
+  --shadeModel $= Flat 
   depthRange $= (0, 1)
 
 ----------------------------------------------------------------------------------------------------------------
