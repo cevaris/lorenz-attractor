@@ -40,7 +40,7 @@ makeState = do
   s  <- newIORef 10
   b  <- newIORef (8/3)
   d  <- newIORef 0.001
-  st <- newIORef 50000
+  st <- newIORef 5000
   return $ State { 
     frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z,
     rho = r, sigma = s, beta = b, dt = d, steps = st
@@ -76,13 +76,10 @@ lorenz  :: LzParams -> [Lorenz]
 lorenz (s, r, b, d, st) = go lzBase [lzBase]
         where 
           go :: Lorenz -> [Lorenz] -> [Lorenz]
-          go (Lorenz i x y z)  xs = if i <= st
-            then let l = Lorenz (i+1) (x+d*(s*(y-x))) (y+d*(x*(r-z)-y)) (z+d*(x*y-b*z))
+          go (Lorenz i x y z)  xs = if i >= st
+            then reverse xs
+            else let l = Lorenz (i+1) (x+d*(s*(y-x))) (y+d*(x*(r-z)-y)) (z+d*(x*y-b*z))
                  in go l (l:xs)
-            else reverse xs
-          --go (Lorenz _ _ _ _)  xs = reverse xs
-          --go (Lorenz i x y z)  xs = let l = Lorenz (i+1) (x+d*(s*(y-x))) (y+d*(x*(r-z)-y)) (z+d*(x*y-b*z))
-          --                          in go l (l:xs)
 
 lorenzPoints :: LzParams -> [(Float,Float,Float)] 
 lorenzPoints lpz = map (\(Lorenz i x y z) -> (x, y, z)) (lorenz lpz)
@@ -203,15 +200,37 @@ updateInfo state = do
     f <- get (frames state)
     ph <- get (ph' state)
     th <- get (th' state)
+    s  <- get (sigma state)
+    r  <- get (rho state)
+    b  <- get (rho state)
+    d  <- get (dt state)
+    st <- get (steps state)
+    let lzp = (s, r, b, d, st)
     zoom <- get (zoom state)
     let seconds = fromIntegral (t - t0') / 1000 :: GLfloat
         fps = fromIntegral f / seconds
         --result = ("[" ++ show f ++ " frames in " ++  (showGFloat (Just 2) seconds "") ++ " seconds] ["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show zoom ++ "]")
-        result = ("["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] z=["  ++ show (zoom*1000) ++ "]")
+        --result = ("["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] z=["  ++ show (zoom*1000) ++ "] lz[ " ++ show lzp ++ "]")
+        result = (" [ph " ++ show ph ++ "] [th " ++ show th ++ "] [z "  ++ show (zoom*1000) ++ "] [sigma " ++ show s ++ "] [rho " ++ show r ++ "] [beta " ++ show b ++ "] [dt " ++ show d ++ "] [steps " ++ show st ++ "]")
     info state $= result
     t0 state $= t
     frames state $= 0
 
+
+drawLorenz :: State -> IO DisplayList
+drawLorenz state = do
+  s  <- get (sigma state)
+  r  <- get (rho state)
+  b  <- get (rho state)
+  d  <- get (dt state)
+  st <- get (steps state)
+  let lzp = (s, r, b, d, st)
+
+  lorenzAttractor <- defineNewList Compile $ do
+    renderPrimitive LineStrip $ do
+      mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints lzp)
+
+  return lorenzAttractor
 
 draw :: State -> (DisplayList, DisplayList) -> IO ()
 draw state (lorenzAttractor, grid) = do
@@ -222,11 +241,7 @@ draw state (lorenzAttractor, grid) = do
   th <- get (th' state)
   info <- get (info state)
   zoom <- get (zoom state)
-  s  <- get (sigma state)
-  r  <- get (rho state)
-  b  <- get (rho state)
-  d  <- get (dt state)
-  st <- get (steps state)
+  lz  <- (drawLorenz state)
   
   loadIdentity
 
@@ -240,7 +255,7 @@ draw state (lorenzAttractor, grid) = do
 
   preservingMatrix $ do       
     lineWidth $= 0.5
-    callList lorenzAttractor
+    callList lz
   
   preservingMatrix $ do
     lineWidth $= 2
@@ -287,12 +302,11 @@ myInit args state = do
   b  <- get (rho state)
   d  <- get (dt state)
   st <- get (steps state)
+  let lzp = (s, r, b, d, st)
 
   lorenzAttractor <- defineNewList Compile $ do
     renderPrimitive LineStrip $ do
-      let lzp = (s, r, b, d, st)
       mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints lzp)
-      --mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints 0.001)
 
   grid <- defineNewList Compile $ do
     renderPrimitive Lines $ do
