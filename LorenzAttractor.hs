@@ -13,7 +13,7 @@ type View = (GLfloat, GLfloat, GLfloat)
 
 data Zoom = In | Out
 data Mod = Increase | Decrease
-zoomDelta = 9e-4
+zoomDelta = 5e-4
 
 data State = State {
    frames  :: IORef Int,
@@ -148,13 +148,13 @@ resetState state = do
 modScale :: State -> Zoom -> IO ()
 modScale state In = do
   z <- get (zoom state)
-  if 2e-2 <= z 
+  if 2e-0 <= z 
     then (zoom state) $~! (\x -> x - zoomDelta)
     else (zoom state) $~! (+zoomDelta)
   postRedisplay Nothing
 modScale state Out = do
   z <- get (zoom state)
-  if 6e-3 >= z 
+  if 6e-5 >= z 
     then (zoom state) $~! (+zoomDelta)
     else (zoom state) $~! (\x -> x - zoomDelta)
   postRedisplay Nothing
