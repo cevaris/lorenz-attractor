@@ -1,4 +1,4 @@
-# lorenz-attractor
+# Lorenz Attractor
 
 
 A Haskell OpenGL/GLUT implementation of a Lorenz System
@@ -8,7 +8,7 @@ A Haskell OpenGL/GLUT implementation of a Lorenz System
 	# Build/Compile project
 	make
 	## Execute application
-	./LorenzAttractor-HW2-AdamC
+	./LorenzAttractor
 
   
 ### Key Bindings
