@@ -40,7 +40,7 @@ makeState = do
   s  <- newIORef 10
   b  <- newIORef (8/3)
   d  <- newIORef 0.001
-  st <- newIORef 5000
+  st <- newIORef 50000
   return $ State { 
     frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z,
     rho = r, sigma = s, beta = b, dt = d, steps = st
@@ -191,6 +191,12 @@ timer :: State -> TimerCallback
 timer state = do
   addTimerCallback timerFrequencyMillis (timer state)
 
+round2 :: Float -> String
+round2 x = showFFloat (Just 2) x ""
+
+roundGL2 :: GLfloat -> String
+roundGL2 x = showGFloat (Just 2) x ""
+
 updateInfo :: State -> IO ()
 updateInfo state = do 
   frames state $~! (+1)
@@ -202,7 +208,7 @@ updateInfo state = do
     th <- get (th' state)
     s  <- get (sigma state)
     r  <- get (rho state)
-    b  <- get (rho state)
+    b  <- get (beta state)
     d  <- get (dt state)
     st <- get (steps state)
     let lzp = (s, r, b, d, st)
@@ -210,8 +216,8 @@ updateInfo state = do
     let seconds = fromIntegral (t - t0') / 1000 :: GLfloat
         fps = fromIntegral f / seconds
         --result = ("[" ++ show f ++ " frames in " ++  (showGFloat (Just 2) seconds "") ++ " seconds] ["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] ["  ++ show view ++ "] z=["  ++ show zoom ++ "]")
-        --result = ("["++ (showGFloat (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] z=["  ++ show (zoom*1000) ++ "] lz[ " ++ show lzp ++ "]")
-        result = (" [ph " ++ show ph ++ "] [th " ++ show th ++ "] [z "  ++ show (zoom*1000) ++ "] [sigma " ++ show s ++ "] [rho " ++ show r ++ "] [beta " ++ show b ++ "] [dt " ++ show d ++ "] [steps " ++ show st ++ "]")
+        --result = ("["++ (show (Just 2) fps "") ++ " FPS]" ++ " [ph " ++ show ph ++ "] [th " ++ show th ++ "] z=["  ++ show (zoom*1000) ++ "] lz[ " ++ show lzp ++ "]")
+        result = (" [ph " ++ roundGL2 ph ++ "] [th " ++ roundGL2 th ++ "] [z "  ++ roundGL2 zoom ++ "] [sigma " ++ round2 s ++ "] [rho " ++ round2 r ++ "] [beta " ++ round2 b ++ "] [dt " ++ show d ++ "] [steps " ++ show st ++ "]")
     info state $= result
     t0 state $= t
     frames state $= 0
@@ -221,7 +227,7 @@ drawLorenz :: State -> IO DisplayList
 drawLorenz state = do
   s  <- get (sigma state)
   r  <- get (rho state)
-  b  <- get (rho state)
+  b  <- get (beta state)
   d  <- get (dt state)
   st <- get (steps state)
   let lzp = (s, r, b, d, st)
@@ -299,7 +305,7 @@ myInit args state = do
 
   s  <- get (sigma state)
   r  <- get (rho state)
-  b  <- get (rho state)
+  b  <- get (beta state)
   d  <- get (dt state)
   st <- get (steps state)
   let lzp = (s, r, b, d, st)
@@ -320,12 +326,12 @@ myInit args state = do
 
 main :: IO ()
 main = do
-    initialWindowSize $= Size 700 700
+    initialWindowSize $= Size 800 800
     (_progName, args) <- getArgsAndInitialize
     initialDisplayMode $= [ RGBMode, WithDepthBuffer, DoubleBuffered ]
     
     initialWindowPosition $= Position 500 500
-    _window <- createWindow "Lorenz Attractor - Adam Cardenas"
+    _window <- createWindow "Lorenz Attractor"
 
     state <- makeState
     (lorenzObject, gridObj) <- myInit args state
