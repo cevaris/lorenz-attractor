@@ -12,4 +12,5 @@ executable LorenzAttractor
     main-is:         LorenzAttractor.hs
     build-depends:   base,
                      GLUT,
-                     OpenGLRaw
+                     OpenGLRaw,
+                     split
