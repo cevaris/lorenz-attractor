@@ -21,7 +21,11 @@ data State = State {
    th'     :: IORef GLfloat,
    info    :: IORef String,
    zoom    :: IORef GLfloat,
-   dots  :: IORef [(GLfloat, GLfloat, GLfloat)]
+   rho     :: IORef Float,
+   sigma   :: IORef Float,
+   beta    :: IORef Float,
+   dt      :: IORef Float,
+   steps   :: IORef Integer
  }
 
 makeState :: IO State
@@ -32,8 +36,15 @@ makeState = do
   th <- newIORef 0
   i  <- newIORef ""
   z  <- newIORef 0.019
-  p  <- newIORef []
-  return $ State { frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z, dots = p}
+  r  <- newIORef 28
+  s  <- newIORef 10
+  b  <- newIORef (8/3)
+  d  <- newIORef 0.001
+  st <- newIORef 50000
+  return $ State { 
+    frames = f, t0 = t, ph' = ph, th' = th, info = i, zoom = z,
+    rho = r, sigma = s, beta = b, dt = d, steps = st
+  }
 
 ----------------------------------------------------------------------------------------------------------------
 
@@ -43,33 +54,38 @@ makeState = do
 
 
 -- attractor parameters
-rho,sigma,beta,dt :: Float
-sigma = 10
-beta = 8/3
-rho = 28 -- chaotic
-dt = 0.001
+--rho,sigma,beta,dt :: Float
+--sigma = 10
+--beta = 8/3
+--rho = 28 -- chaotic
+--dt = 0.001
 
-ddt :: (Float, Float, Float) -> Vertex3 Float
-ddt (x, y, z) = (Vertex3 x' y' z')
-  where
-    x' = sigma*(y-x)
-    y' = x*(rho-z) - y
-    z' = x*y- beta*z
+--ddt :: (Float, Float, Float) -> Vertex3 Float
+--ddt (x, y, z) = (Vertex3 x' y' z')
+--  where
+--    x' = sigma*(y-x)
+--    y' = x*(rho-z) - y
+--    z' = x*y- beta*z
 
 data Lorenz = Lorenz {step::Integer, x::Float, y::Float, z::Float} deriving (Read, Show, Eq)
+type LzParams = (Float, Float, Float, Float, Integer)
 
 lzBase   = Lorenz 0 1 1 1
 
-lorenz  :: Float -> [Lorenz]
-lorenz  dt = go lzBase [lzBase]
+lorenz  :: LzParams -> [Lorenz]
+lorenz (s, r, b, d, st) = go lzBase [lzBase]
         where 
           go :: Lorenz -> [Lorenz] -> [Lorenz]
-          go (Lorenz 5000 _ _ _) xs = reverse xs
-          go (Lorenz i x y z)  xs = let l = Lorenz (i+1) (x+dt*(sigma*(y-x))) (y+dt*(x*(rho-z)-y)) (z+dt*(x*y-beta*z))
-                                    in go l (l:xs)
+          go (Lorenz i x y z)  xs = if i <= st
+            then let l = Lorenz (i+1) (x+d*(s*(y-x))) (y+d*(x*(r-z)-y)) (z+d*(x*y-b*z))
+                 in go l (l:xs)
+            else reverse xs
+          --go (Lorenz _ _ _ _)  xs = reverse xs
+          --go (Lorenz i x y z)  xs = let l = Lorenz (i+1) (x+d*(s*(y-x))) (y+d*(x*(r-z)-y)) (z+d*(x*y-b*z))
+          --                          in go l (l:xs)
 
-lorenzPoints :: Float -> [(Float,Float,Float)] 
-lorenzPoints x = map (\(Lorenz i x y z) -> (x, y, z)) (lorenz x)
+lorenzPoints :: LzParams -> [(Float,Float,Float)] 
+lorenzPoints lpz = map (\(Lorenz i x y z) -> (x, y, z)) (lorenz lpz)
 ----------------------------------------------------------------------------------------------------------------
 
 
@@ -80,17 +96,6 @@ gridPoints :: [(Float, Float, Float)]
 gridPoints = [(0,0,0),(1,0,0),
               (0,0,0),(0,1,0),
               (0,0,0),(0,0,1)]
-----------------------------------------------------------------------------------------------------------------
-
-
-----------------------------------------------------------------------------------------------------------------
--- Axes
-
---tickZero = 0.0 :: GLfloat
---tickLine = map (*1.0) [-1..1] :: [GLfloat]
---tickBase = map (*1.0) [-10..10] :: [GLfloat]
---tickPoints :: ([(GLfloat, GLfloat, GLfloat)], [(GLfloat, GLfloat, GLfloat)], [(GLfloat, GLfloat, GLfloat)])
---tickPoints = (chunksOf 3 $ [(a, b, tickZero) | a <- tickBase, b <- tickLine ], chunksOf 3 $ [(b, a, tickZero) | a <- tickBase, b <- tickLine ], chunksOf 3 $ [(tickZero, b, a) | a <- tickBase, b <- tickLine ])
 
 ----------------------------------------------------------------------------------------------------------------
 
@@ -164,26 +169,19 @@ reshape s@(Size width height) = do
 
   loadIdentity
 
--- Set Vertex2
-vertex2f :: GLfloat -> GLfloat -> IO ()
-vertex2f x y = vertex $ Vertex2 x y
-  
+toGfloat :: Float -> GLfloat
+toGfloat f = (realToFrac f)::GLfloat
 
 -- Set Vertex3
 drawVertex3f :: Float -> Float -> Float -> IO ()
 drawVertex3f x y z = vertex $ vertex3f x y z
 
---vertex3ff :: Float -> Float -> Float -> Vertex3 Float
---vertex3ff x y z = Vertex3 x y (z::Float)
 vertex3f :: Float -> Float -> Float -> Vertex3 GLfloat
 vertex3f x y z = Vertex3 ((realToFrac x)::GLfloat) ((realToFrac y)::GLfloat) ((realToFrac z)::GLfloat)
 
---drawVertex3 :: Float -> Float -> Float -> IO ()
---drawVertex3 x y z = vertex $ Vertex3 (realToFrac x :: GLfloat) (realToFrac y :: GLfloat) (realToFrac z :: GLfloat)
-
 -- Set Vertex4
-vertex4f :: GLfloat -> GLfloat -> GLfloat -> GLfloat -> Vertex4 GLfloat
-vertex4f x y z w = Vertex4 x y z w
+vertex4f :: Float -> Float -> Float -> Float -> Vertex4 GLfloat
+vertex4f x y z w = Vertex4 ((realToFrac x)::GLfloat) ((realToFrac y)::GLfloat) ((realToFrac z)::GLfloat) ((realToFrac w)::GLfloat)
 
 glWindowPos :: GLfloat -> GLfloat -> IO ()
 glWindowPos x y = glWindowPos2f x y
@@ -194,11 +192,6 @@ timerFrequencyMillis = 20
 
 timer :: State -> TimerCallback
 timer state = do
-  --rot <- get (shouldRotate state)
-  --when rot $ do
-  --  ia <- get (inertia state)
-  --  diff state $~ ($+ ia)
-  --  postRedisplay Nothing
   addTimerCallback timerFrequencyMillis (timer state)
 
 updateInfo :: State -> IO ()
@@ -229,6 +222,11 @@ draw state (lorenzAttractor, grid) = do
   th <- get (th' state)
   info <- get (info state)
   zoom <- get (zoom state)
+  s  <- get (sigma state)
+  r  <- get (rho state)
+  b  <- get (rho state)
+  d  <- get (dt state)
+  st <- get (steps state)
   
   loadIdentity
 
@@ -237,11 +235,12 @@ draw state (lorenzAttractor, grid) = do
   rotate ph (Vector3 1 0 0)
   rotate th (Vector3 0 1 0)
 
+  -- Set up perspective
   lookAt (Vertex3 0.1 0 0.1) (Vertex3 0 0 0) (Vector3 0 1 0)
 
-  --preservingMatrix $ do       
-  --  lineWidth $= 0.5
-  --  callList lorenzAttractor
+  preservingMatrix $ do       
+    lineWidth $= 0.5
+    callList lorenzAttractor
   
   preservingMatrix $ do
     lineWidth $= 2
@@ -261,10 +260,12 @@ draw state (lorenzAttractor, grid) = do
     glWindowPos 5 5
     renderString Helvetica18 $ info
 
-  preservingMatrix $ do
-    pointSize $= 2
-    renderPrimitive Points $ do
-      mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints 0.009)
+  --preservingMatrix $ do
+  --  pointSize $= 2
+  --  renderPrimitive Points $ do
+  --    let lzp = (s, r, b, d, st)
+  --    --0.009
+  --    mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints lzp)
 
   swapBuffers
   updateInfo state
@@ -281,9 +282,17 @@ myInit args state = do
   shadeModel $= Flat
   depthRange $= (0, 1)
 
+  s  <- get (sigma state)
+  r  <- get (rho state)
+  b  <- get (rho state)
+  d  <- get (dt state)
+  st <- get (steps state)
+
   lorenzAttractor <- defineNewList Compile $ do
     renderPrimitive LineStrip $ do
-      mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints dt)
+      let lzp = (s, r, b, d, st)
+      mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints lzp)
+      --mapM_ (\(x, y, z) -> drawVertex3f x y z ) (lorenzPoints 0.001)
 
   grid <- defineNewList Compile $ do
     renderPrimitive Lines $ do
